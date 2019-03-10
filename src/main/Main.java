@@ -15,7 +15,8 @@ public class Main extends Application {
         reader.readImage(0, bean);
         Pop pop = new Pop(bean);
         pop.printConnections();
-        System.out.println();
+        pop.calculateFitness(bean);
+        System.out.println(pop.dev+" "+pop.conc);
         //Writer writer = new Writer();
         //writer.write(bean);
     }
