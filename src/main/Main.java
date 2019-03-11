@@ -12,11 +12,15 @@ public class Main extends Application {
     public void start(Stage primaryStage){
         Bean bean = new Bean();
         Reader reader = new Reader();
-        reader.readImage(0, bean);
+        reader.readImage(1, bean);
         Pop pop = new Pop(bean);
         pop.printConnections();
-        pop.calculateFitness(bean);
-        System.out.println(pop.dev+" "+pop.conc);
+        for (int i = 0; i < 10; i++) {
+            pop = Mutator.mutateV(pop,bean);
+        }
+        pop.printConnections();
+        //pop.calculateFitness(bean);
+        //System.out.println(pop.dev+" "+pop.conc);
         //Writer writer = new Writer();
         //writer.write(bean);
     }

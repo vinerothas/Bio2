@@ -8,44 +8,50 @@ import java.util.*;
 
 class MST {
 
-    public static void produceRandomMst(Bean bean, Pop.dir[][] genotype){
+    public static void produceRandomMst(Bean bean, boolean[][] verticalEdges, boolean[][] horizontalEdges){
         Random r = new Random(System.currentTimeMillis());
-        int indexHeight = r.nextInt(bean.height);
-        int indexWidth = r.nextInt(bean.width);
+        int indexHeight = r.nextInt(bean.height-1);
+        int indexWidth = r.nextInt(bean.width-1);
         boolean[][] inMst = new boolean[bean.height][bean.width];
 
         TreeSet<TreeBean> ts = new TreeSet<>(new TreeBeanComparator());
 
         for (int i = 1; i < bean.size; i++) {
-            inMst[indexHeight][indexWidth] = true;
 
-            //directions are flipped because we are looking from each of the neighbours perspectives
-            Float dist = bean.leftDist[indexHeight][indexWidth];
-            if(!dist.isNaN()) ts.add(new TreeBean(indexHeight,indexWidth-1,dist,Pop.dir.right));
-            dist = bean.rightDist[indexHeight][indexWidth];
-            if(!dist.isNaN()) ts.add(new TreeBean(indexHeight,indexWidth+1,dist,Pop.dir.left));
-            dist = bean.upDist[indexHeight][indexWidth];
-            if(!dist.isNaN()) ts.add(new TreeBean(indexHeight-1,indexWidth,dist,Pop.dir.down));
+            Float dist = bean.rightDist[indexHeight][indexWidth];
+            if(!dist.isNaN()) ts.add(new TreeBean(indexHeight,indexWidth,dist,false));
             dist = bean.downDist[indexHeight][indexWidth];
-            if(!dist.isNaN()) ts.add(new TreeBean(indexHeight+1,indexWidth,dist,Pop.dir.up));
+            if(!dist.isNaN()) ts.add(new TreeBean(indexHeight,indexWidth,dist,true));
+            dist = bean.leftDist[indexHeight][indexWidth];
+            if(!dist.isNaN()) ts.add(new TreeBean(indexHeight,indexWidth-1,dist,false));
+            dist = bean.upDist[indexHeight][indexWidth];
+            if(!dist.isNaN()) ts.add(new TreeBean(indexHeight-1,indexWidth,dist,true));
 
             TreeBean popped = ts.pollFirst();
-            while(inMst[popped.key1][popped.key2]){
+            while(inMst[popped.key1][popped.key2]
+                    && ((popped.vertical&&inMst[popped.key1+1][popped.key2])||(!popped.vertical&&inMst[popped.key1][popped.key2+1]))
+            ){
                 popped = ts.pollFirst();
             }
 
             indexHeight = popped.key1;
             indexWidth = popped.key2;
-            genotype[indexHeight][indexWidth] = popped.dir;
-        }
-
-        // set last undefined dir to self
-        for (int i = 0; i < genotype.length ; i++) {
-            for (int j = 0; j < genotype[i].length; j++) {
-                if(genotype[i][j] == null){
-                    genotype[i][j] = Pop.dir.self;
-                    return;
-                }
+            if(popped.vertical){
+                verticalEdges[indexHeight][indexWidth] = true;
+                inMst[indexHeight][indexWidth] = true;
+                inMst[indexHeight+1][indexWidth] = true;
+                dist = bean.rightDist[indexHeight+1][indexWidth];
+                if(!dist.isNaN()) ts.add(new TreeBean(indexHeight+1,indexWidth,dist,false));
+                dist = bean.downDist[indexHeight+1][indexWidth];
+                if(!dist.isNaN()) ts.add(new TreeBean(indexHeight+1,indexWidth,dist,true));
+            }else{
+                horizontalEdges[indexHeight][indexWidth] = true;
+                inMst[indexHeight][indexWidth] = true;
+                inMst[indexHeight][indexWidth+1] = true;
+                dist = bean.rightDist[indexHeight][indexWidth+1];
+                if(!dist.isNaN()) ts.add(new TreeBean(indexHeight,indexWidth+1,dist,false));
+                dist = bean.downDist[indexHeight][indexWidth+1];
+                if(!dist.isNaN()) ts.add(new TreeBean(indexHeight,indexWidth+1,dist,true));
             }
         }
     }
