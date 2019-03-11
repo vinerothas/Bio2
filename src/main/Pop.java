@@ -53,22 +53,24 @@ public class Pop {
     void printConnections(){
         char[] seg = {'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','R','S','T','U','W','X','Y','Z'};
 
-//        for (int k = 0; k < horizontalEdges.length; k++) {
-//            StringBuilder line = new StringBuilder();
-//            for (int l = 0; l < verticalEdges[0].length; l++) {
-//                for (int m = 0; m < segmentToPixel.length; m++) {
-//                    for (int n = 0; n < segmentToPixel[m].length; n++) {
-//                        if(segmentToPixel[m][n].i==k && segmentToPixel[m][n].j==l){
-//                            char c = seg[m%(seg.length-1)];
-//                            line.append(c);
-//                            break;
-//                        }
-//                    }
-//                }
-//            }
-//            System.out.println(line);
-//        }
-//        System.out.println();
+        if(horizontalEdges.length<50) {
+            for (int k = 0; k < horizontalEdges.length; k++) {
+                StringBuilder line = new StringBuilder();
+                for (int l = 0; l < verticalEdges[0].length; l++) {
+                    for (int m = 0; m < segmentToPixel.length; m++) {
+                        for (int n = 0; n < segmentToPixel[m].length; n++) {
+                            if (segmentToPixel[m][n].i == k && segmentToPixel[m][n].j == l) {
+                                char c = seg[m % (seg.length - 1)];
+                                line.append(c);
+                                break;
+                            }
+                        }
+                    }
+                }
+                System.out.println(line);
+            }
+            System.out.println();
+        }
 
         int i;
         for (i = 0; i < horizontalEdges.length-1; i++) {
