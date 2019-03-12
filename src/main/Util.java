@@ -24,6 +24,9 @@ public class Util {
         float g = 0;
         float b = 0;
         for (Index index: segment) {
+            if(index == null){
+                System.out.println();
+            }
             r+= bean.pixelR[index.i][index.j];
             g+= bean.pixelG[index.i][index.j];
             b+= bean.pixelB[index.i][index.j];

@@ -9,6 +9,7 @@ public class Mutator {
             return mutateA(pop,bean);
         }
         Pop pop2 = new Pop(pop);
+        pop = null;
         Random r = new Random(System.nanoTime());
         boolean vertical = r.nextBoolean();
         int h = r.nextInt(bean.height-1);
@@ -39,9 +40,12 @@ public class Mutator {
             w2++;
             dir = 3;
         }
-        System.out.println("MutateR vertical: "+vertical+"    h: "+h+"     w: "+w);
+        //System.out.println("MutateR vertical: "+vertical+"    h: "+h+"     w: "+w);
 
-        Index[] newSegment = new Index[pop2.segmentToPixel[pop2.pixelToSegment[h][w]].length];
+        //if(pop2.pixelToSegment[h][w] >= pop2.segmentToPixel.length){
+        //    System.out.println();
+        //}
+        Index[] newSegment = new Index[ pop2.segmentToPixel[pop2.pixelToSegment[h][w]].length ];
         IntHolder indexHolder = new IntHolder();
         int oldSegment = pop2.pixelToSegment[h][w];
 
@@ -52,7 +56,7 @@ public class Mutator {
 
         //startSegTime = System.currentTimeMillis();
         Index[] oldSegment2 = new Index[pop2.segmentToPixel[oldSegment].length-newSegment2.length];
-        findOldSegment(pop,h2,w2,oldSegment,oldSegment2,new IntHolder(),dir);
+        findOldSegment(pop2,h2,w2,oldSegment,oldSegment2,new IntHolder(),dir);
 
         Index[][] segmentToPixel = new Index[pop2.segmentToPixel.length+1][];
         for (int i = 0; i < pop2.segmentToPixel.length; i++) {
@@ -64,6 +68,23 @@ public class Mutator {
         }
         segmentToPixel[pop2.segmentToPixel.length] = newSegment2;
         pop2.segmentToPixel = segmentToPixel;
+
+        /*for (int i = 0; i < pop2.segmentToPixel.length; i++) {
+            for (int j = 0; j < pop2.segmentToPixel[i].length; j++) {
+                Index index2 = pop2.segmentToPixel[i][j];
+                if(index2==null){
+                    System.out.println();
+                }
+                if(pop2.pixelToSegment[index2.i][index2.j]!=i){
+                    System.out.println();
+                }
+            }
+        }*/
+
+
+        //pop2.printConnections();
+        //System.out.println();
+
         //startTime = System.currentTimeMillis()-startTime;
         //startSegTime = System.currentTimeMillis()-startSegTime;
         //System.out.println("Start: "+startTime+"   Seg: "+startSegTime);
@@ -76,58 +97,98 @@ public class Mutator {
             return mutateR(pop,bean);
         }
         Pop pop2 = new Pop(pop);
+        pop = null;
         Random r = new Random(System.nanoTime());
         boolean vertical = r.nextBoolean();
-        int h = r.nextInt(bean.height-1);
-        int w = r.nextInt(bean.width-1);
-        while(vertical&&pop2.verticalEdges[h][w]){
-            h = r.nextInt(bean.height-1);
-            w = r.nextInt(bean.width);
-        }
-        while(!vertical&&pop2.horizontalEdges[h][w]){
-            h = r.nextInt(bean.height);
-            w = r.nextInt(bean.width-1);
+        boolean[][] edges;
+        int hd = 0;
+        int wd = 0;
+        if(vertical){ //horizontal less width on array, more width on next pixel
+            edges = pop2.verticalEdges;
+            hd = 1;
+        }else{
+            edges = pop2.horizontalEdges;
+            wd = 1;
         }
 
+        int h = r.nextInt(bean.height-hd);
+        int w = r.nextInt(bean.width-wd);
+        int h2 = h+hd;
+        int w2 = w+wd;
+        int maxTries = 100;
+        int tries = 0;
+        while(edges[h][w] || pop2.pixelToSegment[h][w]==pop2.pixelToSegment[h2][w2]){
+            if (tries++ == maxTries) return pop2;
+            h = r.nextInt(bean.height-hd);
+            w = r.nextInt(bean.width-wd);
+            h2 = h+hd;
+            w2 = w+wd;
+        }
         //long startTime = System.currentTimeMillis();
         //long startSegTime;
 
-        int h2 = h;
-        int w2 = w;
+        edges[h][w] = true;
         int dir;
+        if(vertical) dir = 1;
+        else dir = 3;
 
-        if(vertical){
-            pop2.verticalEdges[h][w] = true;
-            h2++;
-            dir = 1;
-        }
-        else{
-            pop2.horizontalEdges[h][w] = true;
-            w2++;
-            dir = 3;
-        }
-        System.out.println("MutateA vertical: "+vertical+"    h: "+h+"     w: "+w);
-
+        //System.out.println("MutateA vertical: "+vertical+"    h: "+h+"     w: "+w);
         short oldSegment = pop2.pixelToSegment[h2][w2];
         short newSegment = pop2.pixelToSegment[h][w];
+        //System.out.println("newSegment<oldSegment "+(newSegment<oldSegment));
 
-        propagateSegment(pop2, h, w,oldSegment,newSegment);
+        if(newSegment<oldSegment){
+            propagateSegment(pop2, h2, w2,oldSegment,newSegment,dir);
+        }else {
+            short a = oldSegment;
+            oldSegment = newSegment;
+            newSegment = a;
+            propagateSegment(pop2, h, w,oldSegment,newSegment,dir+1);
+        }
+        //System.out.println("newSegment:"+newSegment+"  oldSegment:"+oldSegment);
 
         //startSegTime = System.currentTimeMillis();
 
         Index[][] segmentToPixel = new Index[pop2.segmentToPixel.length-1][];
-        int j = 0;
-        for (int i = 0; i < pop2.segmentToPixel.length; i++) {
-            //has to look at pixelToSegment, because pixelToSegment and segmentToPixel might diverge
-            int seg = pop2.pixelToSegment[pop2.segmentToPixel[i][0].i][pop2.segmentToPixel[i][0].j];
-            if(seg != oldSegment && seg != newSegment){
-                segmentToPixel[j++] = pop2.segmentToPixel[i];
+        for (int i = 0; i < pop2.segmentToPixel.length-1; i++) {
+            if(i == oldSegment){
+                //move last segment here and update pixelToSegment
+                segmentToPixel[i] = pop2.segmentToPixel[pop2.segmentToPixel.length-1];
+                for (int k = 0; k < segmentToPixel[i].length; k++) {
+                    pop2.pixelToSegment[segmentToPixel[i][k].i][segmentToPixel[i][k].j]=(short)i;
+                }
+            }else if(i == newSegment){
+                //concatenate segments
+                int l1 = pop2.segmentToPixel[oldSegment].length;
+                int l2 = pop2.segmentToPixel[newSegment].length;
+                segmentToPixel[i] = new Index[l1+l2];
+                for (int j = 0; j < l1; j++) {
+                    segmentToPixel[i][j] = pop2.segmentToPixel[oldSegment][j];
+                }
+                for (int j = l1; j < l2+l1; j++) {
+                    segmentToPixel[i][j] = pop2.segmentToPixel[newSegment][j-l1];
+                }
             }else{
-                //TODO segmentToPixel[j++] = oldSegment2;
+                segmentToPixel[i] = pop2.segmentToPixel[i];
             }
         }
-        //TODO segmentToPixel[pop2.segmentToPixel.length] = newSegment2;
         pop2.segmentToPixel = segmentToPixel;
+
+        /*for (int i = 0; i < pop2.segmentToPixel.length; i++) {
+            for (int j = 0; j < pop2.segmentToPixel[i].length; j++) {
+                Index index = pop2.segmentToPixel[i][j];
+                if(index==null){
+                    System.out.println();
+                }
+                if(pop2.pixelToSegment[index.i][index.j]!=i){
+                    System.out.println();
+                }
+            }
+        }*/
+
+        //pop2.printConnections();
+        //System.out.println();
+
         //startTime = System.currentTimeMillis()-startTime;
         //startSegTime = System.currentTimeMillis()-startSegTime;
         //System.out.println("Start: "+startTime+"   Seg: "+startSegTime);
@@ -156,27 +217,30 @@ public class Mutator {
         }
     }
 
-    static void propagateSegment(Pop pop, int h, int w, int oldSegment, short newSegment){
+    static void propagateSegment(Pop pop, int h, int w, int oldSegment, short newSegment, int dir){
         if(pop.pixelToSegment[h][w] == oldSegment){
             pop.pixelToSegment[h][w]=newSegment;
         } else{
             return; //already marked
         }
-        if(h<pop.verticalEdges.length && w < pop.verticalEdges[0].length && pop.verticalEdges[h][w]){
-            propagateSegment(pop, h+1, w,oldSegment,newSegment);
+        if(dir!= 2 && h<pop.verticalEdges.length && w < pop.verticalEdges[0].length && pop.verticalEdges[h][w]){ //down
+            propagateSegment(pop, h+1, w,oldSegment,newSegment,1);
         }
-        if(h>0 && w < pop.verticalEdges[0].length && pop.verticalEdges[h-1][w]){
-            propagateSegment(pop, h-1, w,oldSegment,newSegment);
+        if(dir!=1 && h>0 && w < pop.verticalEdges[0].length && pop.verticalEdges[h-1][w]){ // up
+            propagateSegment(pop, h-1, w,oldSegment,newSegment,2);
         }
-        if(h<pop.horizontalEdges.length && w < pop.horizontalEdges[0].length && pop.horizontalEdges[h][w]){
-            propagateSegment(pop, h, w+1,oldSegment,newSegment);
+        if(dir !=4 && h<pop.horizontalEdges.length && w < pop.horizontalEdges[0].length && pop.horizontalEdges[h][w]){ //right
+            propagateSegment(pop, h, w+1,oldSegment,newSegment,3);
         }
-        if(w>0 && h < pop.horizontalEdges.length && pop.horizontalEdges[h][w-1]){
-            propagateSegment(pop, h, w-1,oldSegment,newSegment);
+        if(dir != 3 && w>0 && h < pop.horizontalEdges.length && pop.horizontalEdges[h][w-1]){ // left
+            propagateSegment(pop, h, w-1,oldSegment,newSegment,4);
         }
     }
 
     static void findOldSegment(Pop pop, int h, int w, int oldSegment,Index[] oldSegmentArray, IntHolder index, int dir){
+        //if(index.i == oldSegmentArray.length){
+        //    System.out.println();
+        //}
         if(pop.pixelToSegment[h][w] == oldSegment){
             oldSegmentArray[index.i++] = new Index((short)h,(short)w);
         }else{
