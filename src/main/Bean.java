@@ -7,10 +7,19 @@ public class Bean {
     short[][] pixelG;
     short[][] pixelB;
 
+    boolean[][][] gtEdge; //true if black pixel at position [y][x] for image gtEdge[z]
+
     float[][] leftDist;
     float[][] rightDist;
     float[][] upDist;
     float[][] downDist;
+
+    boolean found60 = false;
+    boolean found65 = false;
+    boolean found70 = false;
+    double best = 0;
+    long bestTime = 0;
+
 
     int width;
     int height;

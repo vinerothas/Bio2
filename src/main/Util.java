@@ -109,6 +109,24 @@ public class Util {
         if(pixelToSegment[i][j]!=pixelToSegment[i-1][j-1])conc++; //up left
         if(pixelToSegment[i][j]!=pixelToSegment[i-1][j])conc++; //up
 
-        return conc++;
+        return conc;
+    }
+
+    static boolean[][] recompute(boolean [][] a){
+        int h = a.length;
+        int w = a[0].length;
+        boolean[][] b = new boolean[w][h];
+        int h2 = 0;
+        int w2 = 0;
+        for (int i = 0; i < h; i++) {
+            for (int j = 0; j < w; j++) {
+                b[h2][w2++] = a[i][j];
+                if(w2==h){
+                    w2 = 0;
+                    h2++;
+                }
+            }
+        }
+        return b;
     }
 }

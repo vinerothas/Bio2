@@ -5,39 +5,186 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import javafx.util.Pair;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Random;
 
 public class Main extends Application {
 
+    long startTimeI = 0;
+    long elapsedTimeI = 0;
+    long startTimeC = 0;
+    long elapsedTimeC=0;
+    long startTimeM = 0;
+    long elapsedTimeM=0;
+    long startTimeP = 0;
+    long elapsedTimeP=0;
+    long startTime;
+
+    final static int testNumber = 3;
+    final static boolean nsga = true;
+    final static int popSize = 50;
+    final static int tournamentSize = popSize/3;
+    final static int generations = 100000;
+    final static double minutesRunning = 2;
+    final static double runningTime = 1000*60*minutesRunning;
+    final static int maxSegments = 30;
+    final static int minSegments = 2;
+    final static double devWeight = 0.002;
+    final static double concWeight = 0.1;
+    final static double fitnessComparison = 0.000001;
+    final static int minCrossSegment = 10;
+    final static boolean recompute = true;
+    final static boolean graph = false;
+    final static boolean priAsFitness = false; // MUST BE false DURING DEMO
+    final static double stoppingPri = 0.7001;    // SHOULD BE 0.7 DURING DEMO
+    final static boolean printNewBest = false;// SHOULD BE true DURING DEMO
+
+    Random r;
+
+
     @Override
     public void start(Stage primaryStage){
-        Random r = new Random(System.nanoTime());
+        startTime = System.currentTimeMillis();
+        System.out.println("Start. Pop: "+ popSize+"   Minutes to run: "+ minutesRunning+"   NSGA: "+ nsga);
+
+        r = new Random(System.nanoTime());
         Bean bean = new Bean();
         Reader reader = new Reader();
-        reader.readImage(1, bean);
+        reader.readImage(testNumber, bean);
+        reader.readGT(testNumber,bean);
 
-        NSGA nsga = new NSGA();
-        //nsga.start(bean);
-        ArrayList<ArrayList<Pop>> fronts = nsga.start(bean);
-        DrawPareto.plot(primaryStage,fronts);
+        Pop[] population = new Pop[popSize];
+        Pop[] children = new Pop[popSize];
+        initPop(population,children, bean);
 
-        /*
-        Pop pop = new Pop(bean);
-        //pop.printConnections();
-        for (int i = 0; i < 100; i++) {
-            if(r.nextBoolean()) {
-                pop = Mutator.mutateR(pop, bean);
-            }else{
-                pop = Mutator.mutateA(pop,bean);
+        if(nsga) {
+            NSGA nsga = new NSGA(bean,this,population,children);
+            ArrayList<ArrayList<Pop>> fronts = nsga.start();
+            DrawPareto.plot(primaryStage,fronts);
+        }else{
+            GA ga = new GA(bean,this,population,children);
+            ga.start();
+            if(graph)FitnessPlot.plot(primaryStage);
+        }
+
+        //System.out.println("Drawing of all pareto solutions is off");
+        startTimeP = System.currentTimeMillis();
+        for (int i = 0; i < Main.popSize; i++) {
+            if(!nsga || population[i].rank==1){
+                Writer.writeSolution(population[i],bean,true,population[i].pri*100,false);
+                Writer.writeSolution(population[i],bean,false,population[i].pri*100,false);
             }
-            //pop.printConnections();
-            pop.calculateFitness(bean);
-            System.out.println(pop.dev+" "+pop.conc);
-        }*/
-        //Writer writer = new Writer();
-        //writer.write(bean);
+        }
+        elapsedTimeP = System.currentTimeMillis()-startTimeP;
+
+        printTime();
+    }
+
+    private void initPop(Pop[] population,Pop[] children, Bean bean){
+        Mutator mutator = new Mutator();
+
+        startTimeI = System.currentTimeMillis();
+        for (int i = 0; i < population.length; i++) {
+            population[i] = new Pop(bean);
+            int segmentations = r.nextInt(maxSegments-minSegments)+minSegments-1;
+            for (int j = 0; j < segmentations; j++) {
+                population[i] = MutatorR.mutateR(population[i], bean, mutator);
+            }
+            population[i].calculateObjectives(bean);
+            children[i] = mutator.mutate(population[i], bean);
+            children[i].calculateObjectives(bean);
+        }
+        elapsedTimeI = System.currentTimeMillis()-startTimeI;
+    }
+
+    Pop tournamentSelection(Pop[] population){
+        int bestIndex = r.nextInt(population.length);
+        if(nsga){
+            for (int i = 0; i < Main.tournamentSize - 1; i++) {
+                int i1 = r.nextInt(population.length);
+                if (population[i1].rank <= population[bestIndex].rank) {
+                    if (population[i1].distance > population[bestIndex].rank) {
+                        bestIndex = i1;
+                    }
+                }
+            }
+        }else{
+            for (int i = 0; i < Main.tournamentSize - 1; i++) {
+                int i1 = r.nextInt(population.length);
+                if (population[i1].fitness < population[bestIndex].fitness) {
+                    bestIndex = i1;
+                }
+            }
+        }
+        return population[bestIndex];
+    }
+
+    /*Pair<Pop,Pop> doubleTournamentSelection(Pop[] population){
+        int i1 = r.nextInt(population.length);
+        int i2 = r.nextInt(population.length);
+        int bestIndex;
+        int secondBestIndex;
+
+        if (population[i1].fitness > population[i2].fitness) {
+            bestIndex = i1;
+            secondBestIndex = i2;
+        } else {
+            bestIndex = i2;
+            secondBestIndex = i1;
+        }
+
+        for (int i = 0; i < Param.tournamentSize - 2; i++) {
+            i1 = r.nextInt(population.length);
+            if (population[i1].fitness > population[secondBestIndex].fitness) {
+                if (population[i1].fitness > population[bestIndex].fitness) {
+                    secondBestIndex = bestIndex;
+                    //IT SHOULD HAVE BEEN i1 INSTEAD OF i BUT IT WORKED WELL SO I DUNNO
+                    bestIndex = i;
+                } else {
+                    //IT SHOULD HAVE BEEN i1 INSTEAD OF i BUT IT WORKED WELL SO I DUNNO
+                    secondBestIndex = i;
+                }
+            }
+        }
+
+        if(nsga){
+            for (int i = 0; i < Main.tournamentSize - 1; i++) {
+                int i1 = r.nextInt(population.length);
+                if (population[i1].rank <= population[bestIndex].rank) {
+                    if (population[i1].distance > population[bestIndex].rank) {
+                        bestIndex = i1;
+                    }
+                }
+            }
+        }else{
+            for (int i = 0; i < Main.tournamentSize - 1; i++) {
+                int i1 = r.nextInt(population.length);
+                if (population[i1].fitness < population[bestIndex].fitness) {
+                    bestIndex = i1;
+                }
+            }
+        }
+        return population[bestIndex];
+    }*/
+
+    private void printTime(){
+        long sum = elapsedTimeM+elapsedTimeI+elapsedTimeC+elapsedTimeP;
+        System.out.println("elapsedTimeI: "+elapsedTimeI);
+        System.out.println("elapsedTimeC: "+elapsedTimeC);
+        System.out.println("elapsedTimeM: "+elapsedTimeM);
+        System.out.println("elapsedTimeP: "+elapsedTimeP);
+        System.out.println("sum: "+sum);
+        float ratioI = elapsedTimeI/(float)sum;
+        float ratioC = elapsedTimeC/(float)sum;
+        float ratioM = elapsedTimeM/(float)sum;
+        float ratioP = elapsedTimeP/(float)sum;
+        System.out.println("ratioI: "+ratioI);
+        System.out.println("ratioC: "+ratioC);
+        System.out.println("ratioM: "+ratioM);
+        System.out.println("ratioP: "+ratioP);
     }
 
     public static void main(String[] args) {

@@ -2,18 +2,27 @@ package main;
 
 import javafx.util.Pair;
 
+import java.util.Arrays;
+
 public class Pop {
 
     boolean[][] verticalEdges;
     boolean[][] horizontalEdges;
 
     float conc = Float.MAX_VALUE;
+    float[] devSeg;
     float dev = Float.MAX_VALUE;
     float distance;
     short[][] pixelToSegment;
     Index[][] segmentToPixel;
+    int rank;
+    int mutationUsed;
+    boolean child;
+    double fitness;
+    double pri;
 
     Pop(Bean bean){
+        child = false;
         verticalEdges = new boolean[bean.height-1][bean.width];
         horizontalEdges = new boolean[bean.height][bean.width-1];
         MST.produceRandomMst(bean,verticalEdges,horizontalEdges);
@@ -49,20 +58,45 @@ public class Pop {
                 segmentToPixel[i][j] = new Index(pop.segmentToPixel[i][j].i,pop.segmentToPixel[i][j].j);
             }
         }
+        if(pop.devSeg!=null) {
+            devSeg = new float[segmentToPixel.length];
+            for (int i = 0; i < devSeg.length; i++) {
+                devSeg[i] = pop.devSeg[i];
+            }
+        }
     }
 
-    void calculateFitness(Bean bean){
+    //TODO can be optimized by finding the new deviation only when segments are created/removed
+    void calculateObjectives(Bean bean){
         dev = 0;
+        int i = 0;
+        devSeg = new float[segmentToPixel.length];
         for (Index[] index:segmentToPixel) {
-            dev += Util.segmentDeviation(index, bean);
+            float thisdev = Util.segmentDeviation(index, bean);
+            dev += thisdev;
+            devSeg[i++] = thisdev;
         }
         conc = Util.calculateConc(bean,pixelToSegment);
+        PRI.pri(bean, this);
     }
+
+    void calculateFitness(){
+        if(!Main.priAsFitness)fitness = dev*Main.devWeight+conc*Main.concWeight;
+        if(Main.priAsFitness)fitness = 1/pri;
+    }
+
+
 
     //not dominated if a pop is better in at least one objective at not worse in others than another pop
     boolean dominates(Pop pop){
         if(pop.conc>conc && pop.dev>dev)return true;
         return false;
+    }
+
+    public String toString() {
+        //String s = "dev: "+dev+"   conc: "+conc+"  fitness: "+String.format("%.0f",fitness)+"  PRI: "+pri;
+        String s = "dev: "+dev+"   conc: "+conc+"  fitness: "+fitness+"  PRI: "+pri+"  child: "+child;
+        return s;
     }
 
 

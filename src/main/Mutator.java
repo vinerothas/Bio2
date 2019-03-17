@@ -4,259 +4,141 @@ import java.util.Random;
 
 public class Mutator {
 
-    static Pop mutateR(Pop pop, Bean bean){
-        if(pop.segmentToPixel.length==bean.size){
-            return mutateA(pop,bean);
+    final static int mutations = 5; //number of different mutations
+    double[] mutateChances = new double[]{0.1,0.35,0.1,0.1,0.25};
+    double[] tresholds = new double[mutations];
+    final static int xID = 0;
+    final static int rID = 1;
+    final static int aID = 2;
+    final static int srID = 3;
+    final static int saID = 4;
+    final static int adjustmentRate = Main.nsga ? 1000/ Main.popSize : 1000/Main.popSize*3;
+    int[] mutationUsed = new int[mutations];
+    int[] mutationSucces = new int[mutations];
+    static String[] mutationNames = new String[]{"X","R","A","SR","SA"};
+    private Random r;
+    private static double pity = 0.05;
+    private static double pityTreshold = 0.01;
+    private static double momentum = 0.7;//how much of the previous chance to propagate
+
+    Mutator(){
+        r = new Random(System.nanoTime());
+        tresholds[0] = mutateChances[0];
+        for (int i = 1; i < tresholds.length; i++) {
+            tresholds[i] = tresholds[i-1]+mutateChances[i];
         }
-        Pop pop2 = new Pop(pop);
-        pop = null;
-        Random r = new Random(System.nanoTime());
-        boolean vertical = r.nextBoolean();
-        int h = r.nextInt(bean.height-1);
-        int w = r.nextInt(bean.width-1);
-        while(vertical&&!pop2.verticalEdges[h][w]){
-            h = r.nextInt(bean.height-1);
-            w = r.nextInt(bean.width);
-        }
-        while(!vertical&&!pop2.horizontalEdges[h][w]){
-            h = r.nextInt(bean.height);
-            w = r.nextInt(bean.width-1);
-        }
+    }
 
-        //long startTime = System.currentTimeMillis();
-        //long startSegTime;
+    void generateChildren(Pop[] population, Pop[] children,Bean bean, Main main){
+        main.startTimeM = System.currentTimeMillis();
+        for (int j = 0; j < population.length; j++) {
+            if(population[j].child){
+                population[j].child = false;
+                mutationSucces[population[j].mutationUsed]++;
+            }
+            float f = r.nextFloat();
 
-        int h2 = h;
-        int w2 = w;
-        int dir;
-
-        if(vertical){
-            pop2.verticalEdges[h][w] = false;
-            h2++;
-            dir = 1;
-        }
-        else{
-            pop2.horizontalEdges[h][w] = false;
-            w2++;
-            dir = 3;
-        }
-        //System.out.println("MutateR vertical: "+vertical+"    h: "+h+"     w: "+w);
-
-        //if(pop2.pixelToSegment[h][w] >= pop2.segmentToPixel.length){
-        //    System.out.println();
-        //}
-        Index[] newSegment = new Index[ pop2.segmentToPixel[pop2.pixelToSegment[h][w]].length ];
-        IntHolder indexHolder = new IntHolder();
-        int oldSegment = pop2.pixelToSegment[h][w];
-
-        propagateNewSegment(pop2, h, w,oldSegment,(short)pop2.segmentToPixel.length, newSegment, indexHolder);
-        int index = indexHolder.i;
-        Index[] newSegment2 = new Index[index];
-        System.arraycopy(newSegment,0,newSegment2,0,index);
-
-        //startSegTime = System.currentTimeMillis();
-        Index[] oldSegment2 = new Index[pop2.segmentToPixel[oldSegment].length-newSegment2.length];
-        findOldSegment(pop2,h2,w2,oldSegment,oldSegment2,new IntHolder(),dir);
-
-        Index[][] segmentToPixel = new Index[pop2.segmentToPixel.length+1][];
-        for (int i = 0; i < pop2.segmentToPixel.length; i++) {
-            if(i != oldSegment){
-                segmentToPixel[i] = pop2.segmentToPixel[i];
+            Pop pop = main.tournamentSelection(population);
+            if(f<tresholds[xID] && j+1!=population.length){
+                Pop pop2 = main.tournamentSelection(population);
+                while(pop==pop2){
+                    pop2 = main.tournamentSelection(population);
+                }
+                children[j] = Crosser.cross(pop,pop2,bean,this);
+                children[j+1] = Crosser.cross(pop2,pop,bean,this);
+                children[j].calculateObjectives(bean);
+                children[j].child = true;
+                j++;
+            }else if(f<tresholds[rID]) {
+                children[j] =  MutatorR.mutateR(pop, bean, this);
+            } else if (f<tresholds[aID]) {
+                children[j] =  MutatorA.mutateA(pop, bean, this);
+            }else if (f<tresholds[srID]) {
+                children[j] =  MutatorR.mutateSR(pop, bean, this);
             }else{
-                segmentToPixel[i] = oldSegment2;
+                children[j] =  MutatorA.mutateSA(pop, bean, this);
             }
+            children[j].calculateObjectives(bean);
+            children[j].child = true;
         }
-        segmentToPixel[pop2.segmentToPixel.length] = newSegment2;
-        pop2.segmentToPixel = segmentToPixel;
-
-        /*for (int i = 0; i < pop2.segmentToPixel.length; i++) {
-            for (int j = 0; j < pop2.segmentToPixel[i].length; j++) {
-                Index index2 = pop2.segmentToPixel[i][j];
-                if(index2==null){
-                    System.out.println();
-                }
-                if(pop2.pixelToSegment[index2.i][index2.j]!=i){
-                    System.out.println();
-                }
-            }
-        }*/
-
-
-        //pop2.printConnections();
-        //System.out.println();
-
-        //startTime = System.currentTimeMillis()-startTime;
-        //startSegTime = System.currentTimeMillis()-startSegTime;
-        //System.out.println("Start: "+startTime+"   Seg: "+startSegTime);
-
-        return pop2;
+        main.elapsedTimeM += System.currentTimeMillis()-main.startTimeM;
     }
 
-    static Pop mutateA(Pop pop, Bean bean){
-        if(pop.segmentToPixel.length==1){
-            return mutateR(pop,bean);
+    Pop mutate(Pop pop, Bean bean) {
+        float f = r.nextFloat();
+        while(f<tresholds[xID]){
+            f = r.nextFloat();
         }
-        Pop pop2 = new Pop(pop);
-        pop = null;
-        Random r = new Random(System.nanoTime());
-        boolean vertical = r.nextBoolean();
-        boolean[][] edges;
-        int hd = 0;
-        int wd = 0;
-        if(vertical){ //horizontal less width on array, more width on next pixel
-            edges = pop2.verticalEdges;
-            hd = 1;
+        if (f<tresholds[rID]) {
+            return MutatorR.mutateR(pop, bean, this);
+        } else if (f<tresholds[aID]) {
+            return MutatorA.mutateA(pop, bean, this);
+        }else if (f<tresholds[srID]) {
+            return MutatorR.mutateSR(pop, bean, this);
         }else{
-            edges = pop2.horizontalEdges;
-            wd = 1;
-        }
-
-        int h = r.nextInt(bean.height-hd);
-        int w = r.nextInt(bean.width-wd);
-        int h2 = h+hd;
-        int w2 = w+wd;
-        int maxTries = 100;
-        int tries = 0;
-        while(edges[h][w] || pop2.pixelToSegment[h][w]==pop2.pixelToSegment[h2][w2]){
-            if (tries++ == maxTries) return pop2;
-            h = r.nextInt(bean.height-hd);
-            w = r.nextInt(bean.width-wd);
-            h2 = h+hd;
-            w2 = w+wd;
-        }
-        //long startTime = System.currentTimeMillis();
-        //long startSegTime;
-
-        edges[h][w] = true;
-        int dir;
-        if(vertical) dir = 1;
-        else dir = 3;
-
-        //System.out.println("MutateA vertical: "+vertical+"    h: "+h+"     w: "+w);
-        short oldSegment = pop2.pixelToSegment[h2][w2];
-        short newSegment = pop2.pixelToSegment[h][w];
-        //System.out.println("newSegment<oldSegment "+(newSegment<oldSegment));
-
-        if(newSegment<oldSegment){
-            propagateSegment(pop2, h2, w2,oldSegment,newSegment,dir);
-        }else {
-            short a = oldSegment;
-            oldSegment = newSegment;
-            newSegment = a;
-            propagateSegment(pop2, h, w,oldSegment,newSegment,dir+1);
-        }
-        //System.out.println("newSegment:"+newSegment+"  oldSegment:"+oldSegment);
-
-        //startSegTime = System.currentTimeMillis();
-
-        Index[][] segmentToPixel = new Index[pop2.segmentToPixel.length-1][];
-        for (int i = 0; i < pop2.segmentToPixel.length-1; i++) {
-            if(i == oldSegment){
-                //move last segment here and update pixelToSegment
-                segmentToPixel[i] = pop2.segmentToPixel[pop2.segmentToPixel.length-1];
-                for (int k = 0; k < segmentToPixel[i].length; k++) {
-                    pop2.pixelToSegment[segmentToPixel[i][k].i][segmentToPixel[i][k].j]=(short)i;
-                }
-            }else if(i == newSegment){
-                //concatenate segments
-                int l1 = pop2.segmentToPixel[oldSegment].length;
-                int l2 = pop2.segmentToPixel[newSegment].length;
-                segmentToPixel[i] = new Index[l1+l2];
-                for (int j = 0; j < l1; j++) {
-                    segmentToPixel[i][j] = pop2.segmentToPixel[oldSegment][j];
-                }
-                for (int j = l1; j < l2+l1; j++) {
-                    segmentToPixel[i][j] = pop2.segmentToPixel[newSegment][j-l1];
-                }
-            }else{
-                segmentToPixel[i] = pop2.segmentToPixel[i];
-            }
-        }
-        pop2.segmentToPixel = segmentToPixel;
-
-        /*for (int i = 0; i < pop2.segmentToPixel.length; i++) {
-            for (int j = 0; j < pop2.segmentToPixel[i].length; j++) {
-                Index index = pop2.segmentToPixel[i][j];
-                if(index==null){
-                    System.out.println();
-                }
-                if(pop2.pixelToSegment[index.i][index.j]!=i){
-                    System.out.println();
-                }
-            }
-        }*/
-
-        //pop2.printConnections();
-        //System.out.println();
-
-        //startTime = System.currentTimeMillis()-startTime;
-        //startSegTime = System.currentTimeMillis()-startSegTime;
-        //System.out.println("Start: "+startTime+"   Seg: "+startSegTime);
-
-        return pop2;
-    }
-
-    static void propagateNewSegment(Pop pop, int h, int w, int oldSegment, short newSegment, Index[] newSegmentArray, IntHolder index){
-        if(pop.pixelToSegment[h][w] == oldSegment){
-            pop.pixelToSegment[h][w]=newSegment;
-            newSegmentArray[index.i++] = new Index((short)h,(short)w);
-        } else{
-            return; //already marked
-        }
-        if(h<pop.verticalEdges.length && w < pop.verticalEdges[0].length && pop.verticalEdges[h][w]){
-            propagateNewSegment(pop, h+1, w,oldSegment,newSegment,newSegmentArray, index);
-        }
-        if(h>0 && w < pop.verticalEdges[0].length && pop.verticalEdges[h-1][w]){
-            propagateNewSegment(pop, h-1, w,oldSegment,newSegment,newSegmentArray, index);
-        }
-        if(h<pop.horizontalEdges.length && w < pop.horizontalEdges[0].length && pop.horizontalEdges[h][w]){
-            propagateNewSegment(pop, h, w+1,oldSegment,newSegment,newSegmentArray, index);
-        }
-        if(w>0 && h < pop.horizontalEdges.length && pop.horizontalEdges[h][w-1]){
-            propagateNewSegment(pop, h, w-1,oldSegment,newSegment,newSegmentArray, index);
+            return MutatorA.mutateSA(pop, bean, this);
         }
     }
 
-    static void propagateSegment(Pop pop, int h, int w, int oldSegment, short newSegment, int dir){
-        if(pop.pixelToSegment[h][w] == oldSegment){
-            pop.pixelToSegment[h][w]=newSegment;
-        } else{
-            return; //already marked
+    void adjustMutations(){
+        String s = "";
+        for (int i = 0; i < mutations; i++) {
+            s += mutationNames[i]+"_MU:"+mutationUsed[i]+"    ";
         }
-        if(dir!= 2 && h<pop.verticalEdges.length && w < pop.verticalEdges[0].length && pop.verticalEdges[h][w]){ //down
-            propagateSegment(pop, h+1, w,oldSegment,newSegment,1);
+        System.out.println(s);
+        s = "";
+        for (int i = 0; i < mutations; i++) {
+            s += mutationNames[i]+"_MS:"+mutationSucces[i]+"    ";
         }
-        if(dir!=1 && h>0 && w < pop.verticalEdges[0].length && pop.verticalEdges[h-1][w]){ // up
-            propagateSegment(pop, h-1, w,oldSegment,newSegment,2);
+        System.out.println(s);
+        double[] mr = new double[mutations];
+        for (int i = 0; i < mr.length; i++) {
+            if(mutationUsed[i]!=0) mr[i] = mutationSucces[i]/(float)(mutationUsed[i]);
+            else if(mutationSucces[i]!=0) mr[i] = 1/(double)mutations;
+            else mr[i] = 0;
         }
-        if(dir !=4 && h<pop.horizontalEdges.length && w < pop.horizontalEdges[0].length && pop.horizontalEdges[h][w]){ //right
-            propagateSegment(pop, h, w+1,oldSegment,newSegment,3);
-        }
-        if(dir != 3 && w>0 && h < pop.horizontalEdges.length && pop.horizontalEdges[h][w-1]){ // left
-            propagateSegment(pop, h, w-1,oldSegment,newSegment,4);
-        }
-    }
-
-    static void findOldSegment(Pop pop, int h, int w, int oldSegment,Index[] oldSegmentArray, IntHolder index, int dir){
-        //if(index.i == oldSegmentArray.length){
-        //    System.out.println();
+        mr[xID]/=4;
+        mr[srID]/=4;
+        //s = "";
+        //for (int i = 0; i < mutateChances.length; i++) {
+        //    s += mutationNames[i]+"_C:"+String.format("%.3f",mutateChances[i])+"    ";
         //}
-        if(pop.pixelToSegment[h][w] == oldSegment){
-            oldSegmentArray[index.i++] = new Index((short)h,(short)w);
-        }else{
-            return;
+        //System.out.println(s);
+
+       // s = "";
+        //for (int i = 0; i < mr.length; i++) {
+         //   s += mutationNames[i]+"_R:"+String.format("%.3f",mr[i])+"    ";
+        //}
+        //System.out.println(s);
+
+        double sum = 0;
+        for (int i = 0; i < mutateChances.length; i++) {
+            mutateChances[i] = mr[i]+momentum*mutateChances[i];
+            if(mutateChances[i]<pityTreshold)mutateChances[i] = pity;
+            sum+= mutateChances[i];
         }
-        if(dir!= 2 && h<pop.verticalEdges.length && w < pop.verticalEdges[0].length && pop.verticalEdges[h][w]){ //down
-            findOldSegment(pop, h+1, w,oldSegment,oldSegmentArray, index,1);
+
+        for (int i = 0; i < mutateChances.length; i++) {
+            mutateChances[i] = mutateChances[i]/sum;
         }
-        if(dir!=1 && h>0 && w < pop.verticalEdges[0].length && pop.verticalEdges[h-1][w]){ // up
-            findOldSegment(pop, h-1, w,oldSegment,oldSegmentArray, index,2);
+
+        s = "";
+        for (int i = 0; i < mutateChances.length; i++) {
+            s += mutationNames[i]+"_C:"+String.format("%.3f",mutateChances[i])+"    ";
         }
-        if(dir !=4 && h<pop.horizontalEdges.length && w < pop.horizontalEdges[0].length && pop.horizontalEdges[h][w]){ //right
-            findOldSegment(pop, h, w+1,oldSegment,oldSegmentArray, index,3);
+        System.out.println(s);
+
+        //s = mutationNames[0]+"_T:"+String.format("%.3f",tresholds[0])+"    ";
+        tresholds[0] = mutateChances[0];
+        for (int i = 1; i < tresholds.length; i++) {
+            tresholds[i] = tresholds[i-1]+mutateChances[i];
+            //s += mutationNames[i]+"_T:"+String.format("%.3f",tresholds[i])+"    ";
         }
-        if(dir != 3 && w>0 && h < pop.horizontalEdges.length && pop.horizontalEdges[h][w-1]){ // left
-            findOldSegment(pop, h, w-1,oldSegment,oldSegmentArray, index,4);
+        //System.out.println(s);
+
+        for (int j = 0; j < mutationUsed.length; j++) {
+            mutationUsed[j] = 0;
+            mutationSucces[j] = 0;
         }
     }
 }

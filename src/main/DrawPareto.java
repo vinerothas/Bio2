@@ -7,6 +7,7 @@ import javafx.scene.chart.XYChart;
 import javafx.stage.Stage;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 
 public class DrawPareto {
@@ -23,10 +24,13 @@ public class DrawPareto {
         lineChart.setTitle("Fronts");
         //defining a series
 
+        Comparator<Pop> byDev = (Pop o1, Pop o2) -> (int) (o1.dev - o2.dev);
         Iterator<ArrayList<Pop>> it = fronts.iterator();
         float minDev = Float.MAX_VALUE;
         while(it.hasNext()) {
-            Iterator<Pop> it2 = it.next().iterator();
+            ArrayList<Pop> front = it.next();
+            front.sort(byDev);
+            Iterator<Pop> it2 = front.iterator();
             while(it2.hasNext()) {
                 Pop pop = it2.next();
                 if(pop.dev<minDev){

@@ -1,46 +1,60 @@
 package main;
 
-import javafx.util.Pair;
-
 import java.util.*;
 
 public class NSGA {
 
-    static int popSize = 30;
-    Random r;
-    static int generations = 100;
+    //lagr 1000 bilder med dev og conc, finn PRI for alle og kjør linear regresjon
 
-    public ArrayList<ArrayList<Pop>> start(Bean bean) {
-        Pop[] population = new Pop[popSize];
+    // crossover: take a segment from p1 and put it in p2, do reverse for p2 and p1
+    //      this may break other segments into multiple parts
+    //      find a segment boundary before transplant
+    //      create completely new pixelToSegment initialized to -1
+    //      propagate from every pixel if pixelToSegment==-1, save Indexes underway to save to segmentToPixel
+    // add edge on smallest distance for A, SA or new mutator??????
+    // mutator that traverses a segment edge, and checks if adding this pixel to a neighbouring edge would decrease total segment deviation????
+    //      would require saving the centroid on fitness calculation and updating it underway during mutation
+
+    private Random r;
+    private Pop[] population;
+    private Pop[] children;
+    private Mutator mutator = new Mutator();
+    private Main main;
+    private  Bean bean;
+
+    NSGA(Bean bean, Main main, Pop[] population, Pop[] children){
+        this.main = main;
+        this.bean = bean;
         r = new Random(System.nanoTime());
-        Pop[] children = new Pop[popSize];
-
-        for (int i = 0; i < population.length; i++) {
-            population[i] = new Pop(bean);
-            population[i] = mutate(population[i], bean);
-            population[i].calculateFitness(bean);
-            //population[0].printConnections();
-            children[i] = mutate(population[i], bean);
-            children[i].calculateFitness(bean);
-        }
-
-        for (int i = 0; i < generations; i++) {
-            chooseNextGen(population, children);
-            System.out.println("Gen: "+i);
-            for (int j = 0; j < 10; j++) {
-                System.out.println("dev: "+population[j].dev+"     conc: "+population[j].conc+"    dist: "+population[j].distance);
-            }
-            //population[0].printConnections();
-            for (int j = 0; j < population.length; j++) {
-                children[j] = mutate(population[j], bean);
-                children[j].calculateFitness(bean);
-            }
-        }
-        return chooseNextGen(population,children);
-
+        this.population = population;
+        this.children = children;
     }
 
-    ArrayList<ArrayList<Pop>> chooseNextGen(Pop[] population, Pop[] children) {
+    ArrayList<ArrayList<Pop>> start() {
+        for (int i = 1; i < Main.generations; i++) {
+            main.startTimeC = System.currentTimeMillis();
+            chooseNextGen(population, children);
+            main.elapsedTimeC += System.currentTimeMillis()-main.startTimeC;
+            if(i%Mutator.adjustmentRate==0){
+                System.out.println("Gen: "+i+" elapsedTime: "+(System.currentTimeMillis()-main.startTime));
+                mutator.adjustMutations();
+                //for (int j = 0; j < 5; j++) {
+                //    System.out.println("dev: "+population[j].dev+"     conc: "+population[j].conc+"    dist: "+population[j].distance);
+                //}
+            }
+            mutator.generateChildren(population,children,bean,main);
+
+            if(bean.found70 || System.currentTimeMillis()-main.startTime> Main.runningTime)break;
+        }
+
+        System.out.println("Best PRI: "+bean.best+" at time "+(bean.bestTime-main.startTime));
+
+        ArrayList<ArrayList<Pop>> fronts = chooseNextGen(population,children);
+
+        return fronts;
+    }
+
+    private ArrayList<ArrayList<Pop>> chooseNextGen(Pop[] population, Pop[] children) {
         ArrayList<Pop> generation = new ArrayList<>();
         generation.addAll(Arrays.asList(population));
         generation.addAll(Arrays.asList(children));
@@ -74,15 +88,17 @@ public class NSGA {
             ArrayList<Pop> front2 = (ArrayList<Pop>) front.clone();
             fronts.add(front2);
             front.clear();
-        } while (!removed.isEmpty());
+        } while (!removed.isEmpty() && !generation.isEmpty());
 
 
         Iterator<ArrayList<Pop>> it = fronts.iterator();
         int i = 0;
+        int r = 0;
         Comparator<Pop> byDev = (Pop o1, Pop o2) -> (int) (o1.dev - o2.dev);
         Comparator<Pop> byConc = (Pop o1, Pop o2) -> (int) (o1.conc - o2.conc);
-        Comparator<Pop> byDist = (Pop o1, Pop o2) -> (int) (o1.distance - o2.distance);
+        Comparator<Pop> byDist = (Pop o1, Pop o2) -> (int) (o2.distance - o1.distance);
         while (it.hasNext()) {
+            r++;
             front = it.next();
             front.sort(byDev);
 
@@ -128,20 +144,16 @@ public class NSGA {
             front.sort(byDist);
             it2 = front.iterator();
             while (it2.hasNext()) {
-                population[i++] = it2.next();
-                if(i==popSize) return fronts; //we done here boiii
+                population[i] = it2.next();
+                population[i++].rank = r;
+                if(i== Main.popSize) {
+                    return fronts; //we done here boiii
+                }
             }
         }
-
         return fronts;
     }
 
-    Pop mutate(Pop pop, Bean bean) {
-        if (r.nextBoolean()) {
-            return Mutator.mutateR(pop, bean);
-        } else {
-            return Mutator.mutateA(pop, bean);
-        }
-    }
+
 
 }
