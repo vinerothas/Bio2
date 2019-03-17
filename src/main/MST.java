@@ -9,7 +9,7 @@ import java.util.*;
 class MST {
 
     public static void produceRandomMst(Bean bean, boolean[][] verticalEdges, boolean[][] horizontalEdges){
-        Random r = new Random(System.currentTimeMillis());
+        Random r = new Random(System.nanoTime());
         int indexHeight = r.nextInt(bean.height-1);
         int indexWidth = r.nextInt(bean.width-1);
         boolean[][] inMst = new boolean[bean.height][bean.width];

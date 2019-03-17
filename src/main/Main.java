@@ -10,6 +10,10 @@ import javafx.util.Pair;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class Main extends Application {
 
@@ -23,32 +27,40 @@ public class Main extends Application {
     long elapsedTimeP=0;
     long startTime;
 
-    final static int testNumber = 3;
+    final static int testNumber = 7;
     final static boolean nsga = true;
-    final static int popSize = 50;
+    final static int popSize = 20;
     final static int tournamentSize = popSize/3;
     final static int generations = 100000;
-    final static double minutesRunning = 2;
+    final static double minutesRunning = 3;
     final static double runningTime = 1000*60*minutesRunning;
     final static int maxSegments = 30;
     final static int minSegments = 2;
     final static double devWeight = 0.002;
-    final static double concWeight = 0.1;
+    final static double concWeight = 0.2;
     final static double fitnessComparison = 0.000001;
     final static int minCrossSegment = 10;
     final static boolean recompute = true;
     final static boolean graph = false;
     final static boolean priAsFitness = false; // MUST BE false DURING DEMO
     final static double stoppingPri = 0.7001;    // SHOULD BE 0.7 DURING DEMO
-    final static boolean printNewBest = false;// SHOULD BE true DURING DEMO
+    final static boolean printNewBest = true;// SHOULD BE true DURING DEMO
+    final static int threads = 4;
 
     Random r;
+    ThreadPoolExecutor executor;
+    private int currentPopIndex = 0;
 
 
     @Override
     public void start(Stage primaryStage){
         startTime = System.currentTimeMillis();
         System.out.println("Start. Pop: "+ popSize+"   Minutes to run: "+ minutesRunning+"   NSGA: "+ nsga);
+
+        executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(2);
+        executor.setMaximumPoolSize(threads);
+        executor.setCorePoolSize(threads);
+        executor.setKeepAliveTime(60, TimeUnit.SECONDS);
 
         r = new Random(System.nanoTime());
         Bean bean = new Bean();
@@ -83,19 +95,27 @@ public class Main extends Application {
         printTime();
     }
 
+    synchronized int getCurrentPopIndex(){
+        return currentPopIndex++;
+    }
+
     private void initPop(Pop[] population,Pop[] children, Bean bean){
         Mutator mutator = new Mutator();
 
         startTimeI = System.currentTimeMillis();
-        for (int i = 0; i < population.length; i++) {
-            population[i] = new Pop(bean);
-            int segmentations = r.nextInt(maxSegments-minSegments)+minSegments-1;
-            for (int j = 0; j < segmentations; j++) {
-                population[i] = MutatorR.mutateR(population[i], bean, mutator);
-            }
-            population[i].calculateObjectives(bean);
-            children[i] = mutator.mutate(population[i], bean);
-            children[i].calculateObjectives(bean);
+        CountDownLatch latch = new CountDownLatch(Main.threads);
+        for (int j = 0; j < threads; j++) {
+            InitThread thread = new InitThread(bean,population,children,mutator,this,latch);
+            executor.submit(() -> {
+                thread.run();
+                return null;
+            });
+        }
+        try {
+            latch.await();
+        }catch (Exception e){
+            e.printStackTrace();
+            System.exit(-1); // \_(0_o)_/
         }
         elapsedTimeI = System.currentTimeMillis()-startTimeI;
     }

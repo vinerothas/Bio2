@@ -1,6 +1,7 @@
 package main;
 
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 
 public class NSGA {
 
@@ -21,6 +22,8 @@ public class NSGA {
     private Mutator mutator = new Mutator();
     private Main main;
     private  Bean bean;
+    private int currentPopIndex = 0;
+    private NSGAthread[] threads = new NSGAthread[Main.threads];
 
     NSGA(Bean bean, Main main, Pop[] population, Pop[] children){
         this.main = main;
@@ -28,6 +31,15 @@ public class NSGA {
         r = new Random(System.nanoTime());
         this.population = population;
         this.children = children;
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new NSGAthread();
+            threads[i].bean = bean;
+            threads[i].main = main;
+            threads[i].population = population;
+            threads[i].children = children;
+            threads[i].m = mutator;
+            threads[i].nsga = this;
+        }
     }
 
     ArrayList<ArrayList<Pop>> start() {
@@ -42,7 +54,35 @@ public class NSGA {
                 //    System.out.println("dev: "+population[j].dev+"     conc: "+population[j].conc+"    dist: "+population[j].distance);
                 //}
             }
-            mutator.generateChildren(population,children,bean,main);
+
+            main.startTimeM = System.currentTimeMillis();
+            for (int j = 0; j < population.length; j++) {
+                if (population[j].child) {
+                    population[j].child = false;
+                    mutator.mutationSucces[population[j].mutationUsed]++;
+                }
+            }
+            CountDownLatch latch = new CountDownLatch(Main.threads);
+            for (int j = 0; j < threads.length; j++) {
+                threads[j].latch = latch;
+                NSGAthread thread = threads[j];
+                main.executor.submit(() -> {
+                    try {
+                        thread.run();
+                    }catch (Exception e){
+                        e.printStackTrace();
+                    }
+                    return null;
+                });
+            }
+            try {
+                latch.await();
+            }catch (Exception e){
+                e.printStackTrace();
+                System.exit(-1); // \_(0_o)_/
+            }
+            currentPopIndex = 0;
+            main.elapsedTimeM += System.currentTimeMillis()-main.startTimeM;
 
             if(bean.found70 || System.currentTimeMillis()-main.startTime> Main.runningTime)break;
         }
@@ -52,6 +92,10 @@ public class NSGA {
         ArrayList<ArrayList<Pop>> fronts = chooseNextGen(population,children);
 
         return fronts;
+    }
+
+    public synchronized int getNextPopIndex(){
+        return currentPopIndex++;
     }
 
     private ArrayList<ArrayList<Pop>> chooseNextGen(Pop[] population, Pop[] children) {
