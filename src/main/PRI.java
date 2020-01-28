@@ -1,13 +1,9 @@
 package main;
 
-import java.awt.image.WritableRaster;
-
 import static java.lang.Integer.max;
 import static java.lang.Integer.min;
 
 public class PRI {
-
-    static int pixelRangeCheck = 4;
 
     static void pri(Bean bean, Pop pop){
 
@@ -39,15 +35,19 @@ public class PRI {
         //Writer.writeEdges(bean,1,edges);
        // System.out.println("new");
         double best = 0;
+        int bestGT = -1;
         for (int k = 0; k<bean.gtEdge.length; k++) {
             double score = compareEdges(bean.gtEdge[k],     edges, outline);
             double score2 = compareEdges(edges,     bean.gtEdge[k],outline);
             score = Double.min(score,score2);
-            if(score>best) best = score;
+            if(score>best){
+                best = score;
+                bestGT = k;
+            }
         }
         pop.pri = best;
         if(best>bean.best) {
-            System.out.println("Best PRI: "+best);
+            System.out.println("Best PRI: "+best+" on GT: "+bestGT);
             bean.best = best;
             bean.bestTime = System.currentTimeMillis();
 
@@ -109,10 +109,10 @@ public class PRI {
                         counter++;
                     }else{
                         boolean correctFound = false;
-                        for (int l = max(0,i-pixelRangeCheck); l < min(p1.length,i+pixelRangeCheck); l++) {
+                        for (int l = max(0,i- Main.pixelRangeCheck); l < min(p1.length,i+ Main.pixelRangeCheck); l++) {
                             if(correctFound) break;
-                            int a = max(0,j-pixelRangeCheck);
-                            int b = min(p1[0].length,j+pixelRangeCheck);
+                            int a = max(0,j- Main.pixelRangeCheck);
+                            int b = min(p1[0].length,j+ Main.pixelRangeCheck);
                             for (int m = a; m < b; m++) {
                                 if(p2[l][m]){
                                     counter++;

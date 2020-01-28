@@ -27,12 +27,14 @@ public class Main extends Application {
     long elapsedTimeP=0;
     long startTime;
 
-    final static int testNumber = 7;
-    final static boolean nsga = true;
-    final static int popSize = 20;
-    final static int tournamentSize = popSize/3;
-    final static int generations = 100000;
-    final static double minutesRunning = 3;
+
+    final static int pixelRangeCheck = 4; // = 4 in supplied code
+    final static int testNumber = 3;
+    final static boolean nsga = false;
+    final static int popSize = 50;
+    final static int tournamentSize = 5;   //popSize/3;
+    final static int generations = 1000000;
+    final static double minutesRunning = 50;
     final static double runningTime = 1000*60*minutesRunning;
     final static int maxSegments = 30;
     final static int minSegments = 2;
@@ -40,12 +42,13 @@ public class Main extends Application {
     final static double concWeight = 0.2;
     final static double fitnessComparison = 0.000001;
     final static int minCrossSegment = 10;
-    final static boolean recompute = true;
+    final static boolean recompute = false;
     final static boolean graph = false;
-    final static boolean priAsFitness = false; // MUST BE false DURING DEMO
-    final static double stoppingPri = 0.7001;    // SHOULD BE 0.7 DURING DEMO
+    final static boolean priAsFitness = true; // MUST BE false DURING DEMO
+    final static double stoppingPri = 0.9999;    // SHOULD BE 0.7 DURING DEMO
     final static boolean printNewBest = true;// SHOULD BE true DURING DEMO
-    final static int threads = 4;
+    final static boolean printGreen = true;
+    final static int threads = 5;
 
     Random r;
     ThreadPoolExecutor executor;

@@ -9,6 +9,7 @@ import java.io.IOException;
 public class Writer {
 
     public static void writeSolution(Pop pop, Bean bean, boolean blackandwhite, double score, boolean best){
+        if(!Main.printGreen && !blackandwhite) return;
         BufferedImage image = new BufferedImage(bean.width, bean.height, BufferedImage.TYPE_INT_RGB);
         WritableRaster raster = image.getRaster();
 
